@@ -24,3 +24,9 @@ html2text-*.tar
 
 # Rust binary artifacts
 /target/
+
+# Temporary files, for example, from tests.
+/tmp/
+/priv/native
+
+checksum-*.exs

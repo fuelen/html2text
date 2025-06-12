@@ -12,7 +12,32 @@ defmodule HTML2Text do
   See: https://github.com/jugglerchris/rust-html2text
   """
 
-  use Rustler, otp_app: :html2text, crate: "html2text_nif"
+  mix_config = Mix.Project.config()
+  version = mix_config[:version]
+  github_url = mix_config[:package][:links]["GitHub"]
+
+  targets = ~w(
+    aarch64-apple-darwin
+    aarch64-unknown-linux-gnu
+    aarch64-unknown-linux-musl
+    riscv64gc-unknown-linux-gnu
+    x86_64-apple-darwin
+    x86_64-pc-windows-gnu
+    x86_64-pc-windows-msvc
+    x86_64-unknown-linux-gnu
+    x86_64-unknown-linux-musl
+  )
+
+  nif_versions = ~w(2.17 2.16)
+
+  use RustlerPrecompiled,
+    otp_app: :html2text,
+    crate: "html2text_nif",
+    base_url: "#{github_url}/releases/download/v#{version}",
+    version: version,
+    targets: targets,
+    force_build: System.get_env("HTML2TEXT_BUILD") in ["1", "true"],
+    nif_versions: nif_versions
 
   @spec convert(String.t(), pos_integer() | :infinity) :: String.t()
   @doc """

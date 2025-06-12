@@ -21,6 +21,7 @@ defmodule HTML2Text.MixProject do
       description: "A NIF for converting HTML to plain text",
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
+      files: ~w(lib native .formatter.exs README* LICENSE* mix.exs checksum-*.exs)
     ]
   end
 
@@ -43,7 +44,8 @@ defmodule HTML2Text.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:rustler, "~> 0.36", runtime: false},
+      {:rustler, "~> 0.36", runtime: false, optional: true},
+      {:rustler_precompiled, "~> 0.8"},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false, warn_if_outdated: true}
     ]
   end
