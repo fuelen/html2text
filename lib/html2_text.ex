@@ -16,7 +16,6 @@ defmodule HTML2Text do
   version = mix_config[:version]
   github_url = mix_config[:package][:links]["GitHub"]
 
-
   use RustlerPrecompiled,
     otp_app: :html2text,
     crate: "html2text_nif",
@@ -24,7 +23,6 @@ defmodule HTML2Text do
     version: version,
     force_build: System.get_env("HTML2TEXT_BUILD") in ["1", "true"]
 
-  @spec convert(String.t(), pos_integer() | :infinity) :: String.t()
   @doc """
   Converts HTML content to plain text with configurable line width.
 
@@ -72,6 +70,7 @@ defmodule HTML2Text do
       \"""
 
   """
+  @spec convert(String.t(), pos_integer() | :infinity) :: String.t()
   def convert(html, :infinity) when is_binary(html) do
     do_convert(html, :infinity)
   end
