@@ -1,10 +1,11 @@
 # HTML2Text
+[![Hex.pm](https://img.shields.io/hexpm/v/html2text.svg)](https://hex.pm/packages/html2text)
 
 A high-performance Elixir library for converting HTML documents to plain text format using Rust NIFs (Native Implemented Functions).
 
 ## Overview
 
-HTML2Text provides a simple and efficient way to extract readable plain text from HTML content. It leverages the power of Rust's `html2text` crate to deliver fast HTML parsing and text extraction while maintaining the logical structure and readability of the content.
+HTML2Text provides a simple and efficient way to extract readable plain text from HTML content. It leverages the power of Rust's [html2text](https://crates.io/crates/html2text) crate to deliver fast HTML parsing and text extraction while maintaining the logical structure and readability of the content.
 
 ## Installation
 
