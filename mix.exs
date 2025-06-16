@@ -1,6 +1,6 @@
 defmodule HTML2Text.MixProject do
   use Mix.Project
-  @version "0.1.0"
+  @version "0.1.1"
   @source_url "https://github.com/fuelen/html2text"
 
   def project do

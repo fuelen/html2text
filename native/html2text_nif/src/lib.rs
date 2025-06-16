@@ -2,7 +2,7 @@ use rustler::{NifResult, Env, Atom, Term};
 use std::io::Cursor;
 use html2text::from_read;
 
-#[rustler::nif]
+#[rustler::nif(schedule = "DirtyCpu")]
 fn do_convert(env: Env, html: String, width_term: Term) -> NifResult<String> {
     let cursor = Cursor::new(html.as_bytes());
 
