@@ -14,7 +14,7 @@ Add `html2text` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:html2text, "~> 0.1"}
+    {:html2text, "~> 0.2"}
   ]
 end
 ```
@@ -27,27 +27,17 @@ mix deps.get
 
 ## Usage
 
-The library provides a single main function `HTML2Text.convert/2` that takes HTML content and a width parameter.
-
 ```elixir
 # Convert with specific line width
 html = "<h1>Welcome</h1><p>This is a sample paragraph with some content.</p>"
-text = HTML2Text.convert(html, 30)
+text = HTML2Text.convert!(html, width: 30)
 IO.puts(text)
+
 # Output:
 # # Welcome
 #
 # This is a sample paragraph
 # with some content.
-
-
-# Convert with unlimited width
-text = HTML2Text.convert(html, :infinity)
-IO.puts(text)
-# Output:
-# # Welcome
-#
-# This is a sample paragraph with some content.
 
 html = """
 <article>
@@ -92,7 +82,7 @@ html = """
 </article>
 """
 
-text = HTML2Text.convert(html, 70)
+text = HTML2Text.convert!(html)
 IO.puts(text)
 
 # Output:
@@ -120,8 +110,8 @@ IO.puts(text)
 #
 # ## Conclusion
 #
-# This article provided an overview of important web technologies and
-# some key statistics.
+# This article provided an overview of important web technologies and some key
+# statistics.
 #
 # [1]: http://example.com
 ```

@@ -39,61 +39,64 @@ defmodule HTML2Text do
     version: version,
     force_build: System.get_env("HTML2TEXT_BUILD") in ["1", "true"]
 
+  @type opts :: [
+          width: pos_integer() | :infinity,
+          decorate: boolean(),
+          link_footnotes: boolean(),
+          table_borders: boolean(),
+          pad_block_width: boolean(),
+          allow_width_overflow: boolean(),
+          min_wrap_width: pos_integer(),
+          raw: boolean(),
+          wrap_links: boolean(),
+          unicode_strikeout: boolean()
+        ]
+
   @doc """
-  Converts HTML content to plain text with configurable line width.
+  Converts HTML content to plain text.
 
-  This function converts HTML content to plain text and optionally wraps lines at the
-  specified width. The width can be either a positive integer representing the maximum
-  number of characters per line, or `:infinity` for unlimited line width.
-
-  ## Parameters
-
-  - `html` - A binary containing the HTML content to convert
-  - `width` - Either a positive integer for line width or `:infinity` for unlimited width
-
-  ## Return Value
-
-  Returns a string containing the plain text representation of the HTML content.
+  ## Options
+  - `:width` — Maximum line width (positive integer or `:infinity`). Defaults to `80`. Setting to `:infinity` disables line wrapping and outputs the entire text on a single line.
+  - `:decorate` — Enables text decorations like bold or italic. Boolean, defaults to `true`. When `false`, output is plain text without styling.
+  - `:link_footnotes` — Adds numbered link footnotes at the end of the text. Boolean, defaults to `true`. When `false`, links are omitted.
+  - `:table_borders` — Shows ASCII borders around table cells. Boolean, defaults to `true`. When `false`, tables render without borders.
+  - `:pad_block_width` — Pads blocks with spaces to align text to full width. Boolean, defaults to `false`. Useful for fixed-width layouts.
+  - `:allow_width_overflow` — Allows lines to exceed the specified width if wrapping is impossible. Boolean, defaults to `false`. Prevents errors when content can't fit.
+  - `:min_wrap_width` — Minimum length of text chunks when wrapping lines. Integer ≥ 1, defaults to `3`. Helps avoid awkwardly narrow wraps.
+  - `:raw` — Enables raw mode with minimal processing and formatting. Boolean, defaults to `false`. Produces plain, raw text output.
+  - `:wrap_links` — Wraps long URLs or links onto multiple lines. Boolean, defaults to `true`. When `false`, links stay on a single line and may overflow.
+  - `:unicode_strikeout` — Uses Unicode characters for strikeout text. Boolean, defaults to `true`. When `false`, strikeout renders in simpler styles.
 
   ## Examples
 
-      # Converting with specific width
-      iex> html = "<h1>Welcome to Our Amazing Website</h1><p>This is a comprehensive guide that covers everything you need to know about our services and products.</p>"
-      iex> HTML2Text.convert(html, 30)
-      "# Welcome to Our Amazing\\n# Website\\n\\nThis is a comprehensive guide\\nthat covers everything you\\nneed to know about our\\nservices and products.\\n"
+      iex> html = "<h1>Title</h1><p>Some paragraph text.</p>"
+      ...> HTML2Text.convert(html, width: 15)
+      {:ok, "# Title\\n\\nSome paragraph\\ntext.\\n"}
 
-      # Converting with unlimited width
-      iex> html = "<div><strong>Important:</strong> Please read all the terms and conditions carefully before proceeding with your purchase.</div>"
-      iex> HTML2Text.convert(html, :infinity)
-      "**Important:** Please read all the terms and conditions carefully before proceeding with your purchase.\\n"
+      iex> HTML2Text.convert("<b>Important</b>", decorate: false)
+      {:ok, "Important\\n"}
 
-      # Converting lists and complex HTML
-      iex> html = "<ul><li>First item with some detailed description</li><li>Second item that also has quite a bit of text</li><li>Third item</li></ul>"
-      iex> HTML2Text.convert(html, 25)
-      "* First item with some\\n  detailed description\\n* Second item that also\\n  has quite a bit of text\\n* Third item\\n"
-
-      # Converting tables and structured content
-      iex> html = "<table><tr><td>Product Name</td><td>Description</td><td>Price</td></tr><tr><td>Widget</td><td>A useful widget for everyday tasks</td><td>$19.99</td></tr></table>"
-      iex> HTML2Text.convert(html, 50)
-      \"""
-      ───────────┬────────────────────────────────┬─────
-      Product    │Description                     │Price
-      Name       │                                │     
-      ───────────┼────────────────────────────────┼─────
-      Widget     │A useful widget for everyday    │$19.9
-                 │tasks                           │9    
-      ───────────┴────────────────────────────────┴─────
-      \"""
+      iex> HTML2Text.convert("<table><tr><td>A</td><td>B</td></tr></table>", [])
+      {:ok, "─┬─\\nA│B\\n─┴─\\n"}
 
   """
-  @spec convert(String.t(), pos_integer() | :infinity) :: String.t()
-  def convert(html, :infinity) when is_binary(html) do
-    do_convert(html, :infinity)
+  @spec convert(html :: String.t(), opts()) :: {:ok, text :: String.t()} | {:error, reason :: String.t()}
+  def convert(html, opts \\ []) do
+    do_convert(html, opts)
   end
 
-  def convert(html, width) when is_binary(html) and is_integer(width) and width > 0 do
-    do_convert(html, width)
+  @doc """
+  Converts HTML content to plain text, raising on failure.
+
+  This function behaves like `convert/2`, but raises an error if conversion fails.
+  """
+  @spec convert!(html :: String.t(), opts :: opts()) :: String.t()
+  def convert!(html, opts \\ []) do
+    case do_convert(html, opts) do
+      {:ok, text} -> text
+      {:error, reason} -> raise "HTML to text conversion failed: #{reason}"
+    end
   end
 
-  defp do_convert(_html, _width), do: :erlang.nif_error(:nif_not_loaded)
+  defp do_convert(_html, _opts), do: :erlang.nif_error(:nif_not_loaded)
 end
