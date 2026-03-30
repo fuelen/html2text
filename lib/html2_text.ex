@@ -49,7 +49,8 @@ defmodule HTML2Text do
           min_wrap_width: pos_integer(),
           raw: boolean(),
           wrap_links: boolean(),
-          unicode_strikeout: boolean()
+          unicode_strikeout: boolean(),
+          empty_img_mode: :ignore | {:replace, String.t()} | :filename
         ]
 
   @doc """
@@ -66,6 +67,7 @@ defmodule HTML2Text do
   - `:raw` — Enables raw mode with minimal processing and formatting. Boolean, defaults to `false`. Produces plain, raw text output.
   - `:wrap_links` — Wraps long URLs or links onto multiple lines. Boolean, defaults to `true`. When `false`, links stay on a single line and may overflow.
   - `:unicode_strikeout` — Uses Unicode characters for strikeout text. Boolean, defaults to `true`. When `false`, strikeout renders in simpler styles.
+  - `:empty_img_mode` — Controls how images without alt text are rendered. Accepts `:ignore` (skip images without alt text, default), `{:replace, text}` (replace with static text like `"[image]"`), or `:filename` (use the image filename from URL).
 
   ## Examples
 
@@ -80,7 +82,8 @@ defmodule HTML2Text do
       {:ok, "─┬─\\nA│B\\n─┴─\\n"}
 
   """
-  @spec convert(html :: String.t(), opts()) :: {:ok, text :: String.t()} | {:error, reason :: String.t()}
+  @spec convert(html :: String.t(), opts()) ::
+          {:ok, text :: String.t()} | {:error, reason :: String.t()}
   def convert(html, opts \\ []) do
     do_convert(html, opts)
   end

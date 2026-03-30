@@ -1,5 +1,24 @@
-use html2text::{config::Config, render::PlainDecorator};
+use html2text::{
+    config::{Config, ImageRenderMode},
+    render::PlainDecorator,
+};
 use rustler::{error::Error, Atom, NifResult, Term};
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
+
+static INTERNED: LazyLock<Mutex<HashMap<String, &'static str>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn intern(s: String) -> &'static str {
+    let mut map = INTERNED.lock().unwrap();
+    if let Some(&existing) = map.get(&s) {
+        existing
+    } else {
+        let leaked: &'static str = Box::leak(s.clone().into_boxed_str());
+        map.insert(s, leaked);
+        leaked
+    }
+}
 
 mod atoms {
     rustler::atoms! {
@@ -16,6 +35,10 @@ mod atoms {
         raw,
         wrap_links,
         unicode_strikeout,
+        empty_img_mode,
+        ignore,
+        replace,
+        filename,
     }
 }
 
@@ -31,6 +54,7 @@ struct Options {
     raw: bool,
     wrap_links: bool,
     unicode_strikeout: bool,
+    empty_img_mode: Option<ImageRenderMode>,
 }
 
 impl Default for Options {
@@ -46,6 +70,7 @@ impl Default for Options {
             raw: false,
             wrap_links: true,
             unicode_strikeout: true,
+            empty_img_mode: None,
         }
     }
 }
@@ -71,6 +96,9 @@ impl From<Options> for Config<PlainDecorator> {
         }
         if !config.wrap_links {
             cfg = cfg.no_link_wrapping();
+        }
+        if let Some(img_mode) = config.empty_img_mode {
+            cfg = cfg.empty_img_mode(img_mode);
         }
 
         cfg.link_footnotes(config.link_footnotes)
@@ -114,6 +142,20 @@ impl<'a> TryFrom<Term<'a>> for Options {
                 k if k == atoms::raw() => set_if_ok!(config, raw, val),
                 k if k == atoms::wrap_links() => set_if_ok!(config, wrap_links, val),
                 k if k == atoms::unicode_strikeout() => set_if_ok!(config, unicode_strikeout, val),
+                k if k == atoms::empty_img_mode() => {
+                    if let Ok(atom) = val.decode::<Atom>() {
+                        if atom == atoms::ignore() {
+                            config.empty_img_mode = Some(ImageRenderMode::IgnoreEmpty);
+                        } else if atom == atoms::filename() {
+                            config.empty_img_mode = Some(ImageRenderMode::Filename);
+                        }
+                    } else if let Ok(tuple) = val.decode::<(Atom, String)>() {
+                        if tuple.0 == atoms::replace() {
+                            config.empty_img_mode =
+                                Some(ImageRenderMode::Replace(intern(tuple.1)));
+                        }
+                    }
+                }
                 _ => {}
             }
         }

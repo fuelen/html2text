@@ -364,5 +364,24 @@ defmodule HTML2TextTest do
     test "ignore options with invalid types" do
       assert {:ok, _} = HTML2Text.convert(@html, width: "not_a_number", decorate: "not_a_boolean")
     end
+
+    test "empty_img_mode: :ignore" do
+      html = ~s(<p>Text</p><img src="photo.jpg"><p>More</p>)
+      assert {:ok, "Text\n\nMore\n"} = HTML2Text.convert(html, empty_img_mode: :ignore)
+    end
+
+    test "empty_img_mode: {:replace, text}" do
+      html = ~s(<p>Text</p><img src="photo.jpg"><p>More</p>)
+
+      assert {:ok, "Text\n\n[[img]]\n\nMore\n"} =
+               HTML2Text.convert(html, empty_img_mode: {:replace, "[img]"})
+    end
+
+    test "empty_img_mode: :filename" do
+      html = ~s(<p>Text</p><img src="https://example.com/photo.jpg"><p>More</p>)
+
+      assert {:ok, "Text\n\n[photo.jpg]\n\nMore\n"} =
+               HTML2Text.convert(html, empty_img_mode: :filename)
+    end
   end
 end
