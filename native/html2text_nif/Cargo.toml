@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 rustler = "0.36.2"
-html2text = "0.16.7"
+html2text = { version = "0.16.7", features = ["css"] }
 
 [features]
 default = ["nif_version_2_16"]

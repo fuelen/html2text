@@ -1,8 +1,8 @@
 use html2text::{
     config::{Config, ImageRenderMode},
-    render::PlainDecorator,
+    render::{PlainDecorator, RichAnnotation, RichDecorator, TaggedLine},
 };
-use rustler::{error::Error, Atom, NifResult, Term};
+use rustler::{error::Error, Atom, Encoder, Env, NifResult, Term};
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
@@ -39,6 +39,20 @@ mod atoms {
         ignore,
         replace,
         filename,
+        // rich annotations
+        default,
+        emphasis,
+        strong,
+        strikeout,
+        code,
+        link,
+        image,
+        preformat,
+        colour,
+        bg_colour,
+        // rich options
+        use_doc_css,
+        css,
     }
 }
 
@@ -55,6 +69,8 @@ struct Options {
     wrap_links: bool,
     unicode_strikeout: bool,
     empty_img_mode: Option<ImageRenderMode>,
+    use_doc_css: bool,
+    css: Option<String>,
 }
 
 impl Default for Options {
@@ -71,40 +87,56 @@ impl Default for Options {
             wrap_links: true,
             unicode_strikeout: true,
             empty_img_mode: None,
+            use_doc_css: false,
+            css: None,
         }
     }
 }
 
-impl From<Options> for Config<PlainDecorator> {
-    fn from(config: Options) -> Self {
-        let mut cfg = html2text::config::plain_no_decorate().max_wrap_width(config.width);
+use html2text::render::TextDecorator;
 
-        if config.decorate {
-            cfg = cfg.do_decorate();
-        }
-        if !config.table_borders {
-            cfg = cfg.no_table_borders();
-        }
-        if config.pad_block_width {
-            cfg = cfg.pad_block_width();
-        }
-        if config.allow_width_overflow {
-            cfg = cfg.allow_width_overflow();
-        }
-        if config.raw {
-            cfg = cfg.raw_mode(true);
-        }
-        if !config.wrap_links {
-            cfg = cfg.no_link_wrapping();
-        }
-        if let Some(img_mode) = config.empty_img_mode {
-            cfg = cfg.empty_img_mode(img_mode);
-        }
-
-        cfg.link_footnotes(config.link_footnotes)
-            .min_wrap_width(config.min_wrap_width)
-            .unicode_strikeout(config.unicode_strikeout)
+/// Applies shared options to any Config<D>.
+fn apply_shared_options<D: TextDecorator>(
+    mut cfg: Config<D>,
+    options: &Options,
+) -> Result<Config<D>, html2text::Error> {
+    cfg = cfg.max_wrap_width(options.width);
+    if !options.table_borders {
+        cfg = cfg.no_table_borders();
     }
+    if options.pad_block_width {
+        cfg = cfg.pad_block_width();
+    }
+    if options.allow_width_overflow {
+        cfg = cfg.allow_width_overflow();
+    }
+    if options.raw {
+        cfg = cfg.raw_mode(true);
+    }
+    if !options.wrap_links {
+        cfg = cfg.no_link_wrapping();
+    }
+    if let Some(img_mode) = options.empty_img_mode {
+        cfg = cfg.empty_img_mode(img_mode);
+    }
+    cfg = cfg.min_wrap_width(options.min_wrap_width);
+    if options.use_doc_css {
+        cfg = cfg.use_doc_css();
+    }
+    if let Some(ref css) = options.css {
+        cfg = cfg.add_css(css)?;
+    }
+    Ok(cfg)
+}
+
+fn build_plain_config(options: &Options) -> Result<Config<PlainDecorator>, html2text::Error> {
+    let mut cfg = apply_shared_options(html2text::config::plain_no_decorate(), options)?;
+    if options.decorate {
+        cfg = cfg.do_decorate();
+    }
+    Ok(cfg
+        .link_footnotes(options.link_footnotes)
+        .unicode_strikeout(options.unicode_strikeout))
 }
 
 /// Decodes a Term value into a struct field if successful.
@@ -142,6 +174,12 @@ impl<'a> TryFrom<Term<'a>> for Options {
                 k if k == atoms::raw() => set_if_ok!(config, raw, val),
                 k if k == atoms::wrap_links() => set_if_ok!(config, wrap_links, val),
                 k if k == atoms::unicode_strikeout() => set_if_ok!(config, unicode_strikeout, val),
+                k if k == atoms::use_doc_css() => set_if_ok!(config, use_doc_css, val),
+                k if k == atoms::css() => {
+                    if let Ok(s) = val.decode::<String>() {
+                        config.css = Some(s);
+                    }
+                }
                 k if k == atoms::empty_img_mode() => {
                     if let Ok(atom) = val.decode::<Atom>() {
                         if atom == atoms::ignore() {
@@ -174,9 +212,66 @@ fn do_convert(html: String, config_term: Term) -> NifResult<(Atom, String)> {
     let options = Options::try_from(config_term)?;
     let width = options.width;
 
-    match Config::from(options).string_from_read(html.as_bytes(), width) {
+    let cfg = match build_plain_config(&options) {
+        Ok(c) => c,
+        Err(e) => return Ok((atoms::error(), e.to_string())),
+    };
+
+    match cfg.string_from_read(html.as_bytes(), width) {
         Ok(text) => Ok((atoms::ok(), text)),
         Err(e) => Ok((atoms::error(), e.to_string())),
+    }
+}
+
+fn encode_annotation<'a>(ann: &RichAnnotation, env: Env<'a>) -> Term<'a> {
+    match ann {
+        RichAnnotation::Default => atoms::default().encode(env),
+        RichAnnotation::Emphasis => atoms::emphasis().encode(env),
+        RichAnnotation::Strong => atoms::strong().encode(env),
+        RichAnnotation::Strikeout => atoms::strikeout().encode(env),
+        RichAnnotation::Code => atoms::code().encode(env),
+        RichAnnotation::Link(url) => (atoms::link(), url.as_str()).encode(env),
+        RichAnnotation::Image(src) => (atoms::image(), src.as_str()).encode(env),
+        RichAnnotation::Preformat(cont) => (atoms::preformat(), *cont).encode(env),
+        RichAnnotation::Colour(c) => (atoms::colour(), (c.r, c.g, c.b)).encode(env),
+        RichAnnotation::BgColour(c) => (atoms::bg_colour(), (c.r, c.g, c.b)).encode(env),
+        _ => atoms::default().encode(env),
+    }
+}
+
+fn encode_line<'a>(line: &TaggedLine<Vec<RichAnnotation>>, env: Env<'a>) -> Term<'a> {
+    let segments: Vec<Term> = line
+        .tagged_strings()
+        .map(|ts| {
+            let annotations: Vec<Term> =
+                ts.tag.iter().map(|ann| encode_annotation(ann, env)).collect();
+            (ts.s.as_str(), annotations).encode(env)
+        })
+        .collect();
+    segments.encode(env)
+}
+
+fn build_rich_config(options: &Options) -> Result<Config<RichDecorator>, html2text::Error> {
+    apply_shared_options(html2text::config::rich(), options)
+}
+
+#[rustler::nif(schedule = "DirtyCpu")]
+fn do_convert_rich<'a>(env: Env<'a>, html: String, config_term: Term) -> NifResult<Term<'a>> {
+    let options = Options::try_from(config_term)?;
+    let width = options.width;
+
+    let cfg = match build_rich_config(&options) {
+        Ok(c) => c,
+        Err(e) => return Ok((atoms::error(), e.to_string()).encode(env)),
+    };
+
+    match cfg.lines_from_read(html.as_bytes(), width) {
+        Ok(lines) => {
+            let encoded_lines: Vec<Term> =
+                lines.iter().map(|line| encode_line(line, env)).collect();
+            Ok((atoms::ok(), encoded_lines).encode(env))
+        }
+        Err(e) => Ok((atoms::error(), e.to_string()).encode(env)),
     }
 }
 

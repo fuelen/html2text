@@ -1,11 +1,15 @@
 # HTML2Text
 [![Hex.pm](https://img.shields.io/hexpm/v/html2text.svg)](https://hex.pm/packages/html2text)
 
-A high-performance Elixir library for converting HTML documents to plain text format using Rust NIFs (Native Implemented Functions).
+A high-performance Elixir library for converting HTML to plain text or annotated rich text using Rust NIFs (Native Implemented Functions).
 
 ## Overview
 
-HTML2Text provides a simple and efficient way to extract readable plain text from HTML content. It leverages the power of Rust's [html2text](https://crates.io/crates/html2text) crate to deliver fast HTML parsing and text extraction while maintaining the logical structure and readability of the content.
+HTML2Text provides a simple and efficient way to extract readable text from HTML content. It leverages Rust's [html2text](https://crates.io/crates/html2text) crate for fast HTML parsing and text extraction.
+
+Two conversion modes are available:
+- **Plain text** (`convert/2`) — markdown-like output with `**bold**`, `*italic*`, link footnotes, table borders
+- **Rich text** (`convert_rich/2`) — structured `{text, annotations}` tuples for building custom renderers (ANSI terminal, Slack, Inspect protocol, etc.)
 
 ## Installation
 
@@ -26,6 +30,8 @@ mix deps.get
 ```
 
 ## Usage
+
+### Plain text
 
 ```elixir
 # Convert with specific line width
@@ -115,3 +121,24 @@ IO.puts(text)
 #
 # [1]: http://example.com
 ```
+
+### Rich text
+
+```elixir
+# Rich mode returns annotated segments instead of formatted text
+{:ok, lines} = HTML2Text.convert_rich("<p>Hello <strong>world</strong></p>")
+# => {:ok, [[{"Hello ", []}, {"world", [:strong]}]]}
+
+# Annotations stack for nested elements
+{:ok, lines} = HTML2Text.convert_rich(~s(<a href="https://ex.com"><em>click</em></a>))
+# => {:ok, [[{"click", [{:link, "https://ex.com"}, :emphasis]}]]}
+
+# Extract CSS colours with use_doc_css
+html = ~s(<p style="color: red">alert</p>)
+{:ok, lines} = HTML2Text.convert_rich(html, use_doc_css: true)
+# => {:ok, [[{"alert", [colour: {255, 0, 0}]}]]}
+```
+
+Available annotations: `:default`, `:emphasis`, `:strong`, `:strikeout`, `:code`,
+`{:link, url}`, `{:image, src}`, `{:preformat, bool}`, `{:colour, {r, g, b}}`,
+`{:bg_colour, {r, g, b}}`.

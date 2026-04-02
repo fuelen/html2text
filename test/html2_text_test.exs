@@ -383,5 +383,117 @@ defmodule HTML2TextTest do
       assert {:ok, "Text\n\n[photo.jpg]\n\nMore\n"} =
                HTML2Text.convert(html, empty_img_mode: :filename)
     end
+
+    test "convert! raises HTML2Text.Error" do
+      assert_raise HTML2Text.Error, "Output width not wide enough.", fn ->
+        HTML2Text.convert!(@html, allow_width_overflow: false, width: 4)
+      end
+    end
+  end
+
+  describe "convert_rich" do
+    test "basic text with strong" do
+      assert {:ok, [[{"Hello ", []}, {"world", [:strong]}]]} =
+               HTML2Text.convert_rich("<p>Hello <strong>world</strong></p>")
+    end
+
+    test "emphasis annotation" do
+      assert {:ok, [[{"text", [:emphasis]}]]} =
+               HTML2Text.convert_rich("<em>text</em>")
+    end
+
+    test "link annotation" do
+      assert {:ok, [[{"click", [{:link, "https://example.com"}]}]]} =
+               HTML2Text.convert_rich(~s(<a href="https://example.com">click</a>))
+    end
+
+    test "nested annotations stack" do
+      assert {:ok, [[{"bold link", [{:link, "https://ex.com"}, :strong]}]]} =
+               HTML2Text.convert_rich(~s(<a href="https://ex.com"><strong>bold link</strong></a>))
+    end
+
+    test "strikeout annotation" do
+      assert {:ok, [[{"d̶e̶l̶e̶t̶e̶d̶", [:strikeout]}]]} =
+               HTML2Text.convert_rich("<s>deleted</s>")
+    end
+
+    test "code annotation" do
+      assert {:ok, [[{"x = 1", [:code]}]]} =
+               HTML2Text.convert_rich("<code>x = 1</code>")
+    end
+
+    test "multiple lines with empty line between paragraphs" do
+      assert {:ok, [[{"one", []}], [], [{"two", []}]]} =
+               HTML2Text.convert_rich("<p>one</p><p>two</p>")
+    end
+
+    test "width option wraps text" do
+      assert {:ok, [[{"Hello", []}], [{"world", []}]]} =
+               HTML2Text.convert_rich("<p>Hello world</p>", width: 5)
+    end
+
+    test "convert_rich! returns lines directly" do
+      assert [[{"hello", []}]] =
+               HTML2Text.convert_rich!("<p>hello</p>")
+    end
+
+    test "image annotation with alt text" do
+      html = ~s(<img src="photo.jpg" alt="my photo">)
+
+      assert {:ok, [[{"my photo", [{:image, "photo.jpg"}]}]]} =
+               HTML2Text.convert_rich(html)
+    end
+
+    test "image with empty_img_mode: :filename" do
+      html = ~s(<img src="photo.jpg">)
+
+      assert {:ok, [[{"photo.jpg", [{:image, "photo.jpg"}]}]]} =
+               HTML2Text.convert_rich(html, empty_img_mode: :filename)
+    end
+
+    test "preformat annotation" do
+      assert {:ok, [[{"code", [{:preformat, false}]}], [{"block", [{:preformat, false}]}]]} =
+               HTML2Text.convert_rich("<pre>code\nblock</pre>")
+    end
+
+    test "preformat continuation on wrapped lines" do
+      {:ok, lines} = HTML2Text.convert_rich("<pre>a very long line</pre>", width: 10)
+      [{_, first_ann}] = List.first(lines)
+      [{_, cont_ann}] = Enum.at(lines, 1)
+      assert first_ann == [{:preformat, false}]
+      assert cont_ann == [{:preformat, true}]
+    end
+
+    test "table_borders: false" do
+      html = "<table><tr><td>A</td><td>B</td></tr></table>"
+      assert {:ok, [[{"A B", []}]]} = HTML2Text.convert_rich(html, table_borders: false)
+    end
+
+    test "raw mode" do
+      html = "<table><tr><td>A</td><td>B</td></tr></table>"
+      assert {:ok, [[{"A", []}], [{"B", []}]]} = HTML2Text.convert_rich(html, raw: true)
+    end
+
+    test "use_doc_css extracts inline colour" do
+      html = ~s(<p style="color: red">red</p>)
+
+      assert {:ok, [[{"red", [{:colour, {255, 0, 0}}]}]]} =
+               HTML2Text.convert_rich(html, use_doc_css: true)
+    end
+
+    test "use_doc_css extracts class colour" do
+      html =
+        ~s(<html><head><style>.r { color: #ff0000; }</style></head><body><p class="r">red</p></body></html>)
+
+      assert {:ok, [[{"red", [{:colour, {255, 0, 0}}]}]]} =
+               HTML2Text.convert_rich(html, use_doc_css: true)
+    end
+
+    test "use_doc_css extracts background colour" do
+      html = ~s(<p style="background-color: #ffff00">yellow</p>)
+
+      assert {:ok, [[{"yellow", [{:bg_colour, {255, 255, 0}}]}]]} =
+               HTML2Text.convert_rich(html, use_doc_css: true)
+    end
   end
 end
