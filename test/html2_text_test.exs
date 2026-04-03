@@ -496,4 +496,139 @@ defmodule HTML2TextTest do
                HTML2Text.convert_rich(html, use_doc_css: true)
     end
   end
+
+  describe "HTML2Text.HTML" do
+    test "new/1 creates struct" do
+      html = HTML2Text.HTML.new("<p>hello</p>")
+      assert %HTML2Text.HTML{source: "<p>hello</p>"} = html
+    end
+
+    test "to_string returns original HTML" do
+      html = HTML2Text.HTML.new("<p>hello</p>")
+      assert to_string(html) == "<p>hello</p>"
+    end
+
+    test "inspect inline with ANSI" do
+      colors = [string: :green]
+      bright = IO.ANSI.bright()
+      normal = IO.ANSI.normal()
+      default = IO.ANSI.default_color()
+      reset = IO.ANSI.reset()
+
+      assert inspect(HTML2Text.HTML.new("<p>Hello <strong>world</strong></p>"),
+               syntax_colors: colors
+             ) ==
+               "#HTML2Text.HTML<#{default}Hello #{bright}world#{normal}#{reset}>"
+    end
+
+    test "inspect link with ANSI" do
+      colors = [string: :green]
+      ul = IO.ANSI.underline()
+      blue = IO.ANSI.blue()
+      no_ul = IO.ANSI.no_underline()
+      default = IO.ANSI.default_color()
+      reset = IO.ANSI.reset()
+      url = "https://example.com"
+      open = "\e]8;id=#{:erlang.phash2(url)};#{url}\e\\"
+      close = "\e]8;;\e\\"
+
+      assert inspect(HTML2Text.HTML.new(~s(<a href="#{url}">click</a>)), syntax_colors: colors) ==
+               "#HTML2Text.HTML<#{default}#{ul}#{blue}#{open}click#{close}#{no_ul}#{default}#{reset}>"
+    end
+
+    test "inspect emphasis with ANSI" do
+      colors = [string: :green]
+      italic = IO.ANSI.italic()
+      no_italic = IO.ANSI.not_italic()
+      default = IO.ANSI.default_color()
+      reset = IO.ANSI.reset()
+
+      assert inspect(HTML2Text.HTML.new("<em>italic</em>"), syntax_colors: colors) ==
+               "#HTML2Text.HTML<#{default}#{italic}italic#{no_italic}#{reset}>"
+    end
+
+    test "inspect code with ANSI" do
+      colors = [string: :green]
+      cyan = IO.ANSI.cyan()
+      default = IO.ANSI.default_color()
+      reset = IO.ANSI.reset()
+
+      assert inspect(HTML2Text.HTML.new("<code>x = 1</code>"), syntax_colors: colors) ==
+               "#HTML2Text.HTML<#{default}#{cyan}x = 1#{default}#{reset}>"
+    end
+
+    test "inspect strikeout with ANSI" do
+      colors = [string: :green]
+      crossed = IO.ANSI.crossed_out()
+      default = IO.ANSI.default_color()
+      reset = IO.ANSI.reset()
+
+      assert inspect(HTML2Text.HTML.new("<s>deleted</s>"), syntax_colors: colors) ==
+               "#HTML2Text.HTML<#{default}#{crossed}d̶e̶l̶e̶t̶e̶d̶\e[29m#{reset}>"
+    end
+
+    test "inspect multiline without ANSI" do
+      html = HTML2Text.HTML.new("<p>one</p><p>two</p>")
+
+      assert inspect(html) ==
+               """
+               #HTML2Text.HTML<
+                 one
+                 \n\
+                 two
+               >\
+               """
+    end
+
+    test "inspect CSS colour with true color RGB" do
+      colors = [string: :green]
+      default = IO.ANSI.default_color()
+      reset = IO.ANSI.reset()
+
+      html = HTML2Text.HTML.new(~s(<p style="color: #ff6600">orange</p>))
+
+      assert inspect(html, syntax_colors: colors) ==
+               "#HTML2Text.HTML<#{default}\e[38;2;255;102;0morange#{default}#{reset}>"
+    end
+
+    test "inspect CSS background colour with true color RGB" do
+      colors = [string: :green]
+      default = IO.ANSI.default_color()
+      default_bg = IO.ANSI.default_background()
+      reset = IO.ANSI.reset()
+
+      html = HTML2Text.HTML.new(~s(<p style="background-color: #003300; color: #00cc00">ok</p>))
+
+      assert inspect(html, syntax_colors: colors) ==
+               "#HTML2Text.HTML<#{default}\e[38;2;0;204;0m\e[48;2;0;51;0mok#{default}#{default_bg}#{reset}>"
+    end
+
+    test "inspect without ANSI: inline" do
+      html = HTML2Text.HTML.new("<p>Hello <strong>world</strong></p>")
+      assert inspect(html, syntax_colors: []) == "#HTML2Text.HTML<Hello world>"
+    end
+
+    test "inspect without ANSI: multiline" do
+      html = HTML2Text.HTML.new("<p>one</p><p>two</p>")
+
+      assert inspect(html, syntax_colors: []) ==
+               """
+               #HTML2Text.HTML<
+                 one
+                 \n\
+                 two
+               >\
+               """
+    end
+
+    test "inspect without ANSI: link" do
+      html = HTML2Text.HTML.new(~s(<a href="https://example.com">click</a>))
+      assert inspect(html, syntax_colors: []) == "#HTML2Text.HTML<click>"
+    end
+
+    test "inspect without ANSI: all annotations are plain text" do
+      html = HTML2Text.HTML.new("<p><strong>bold</strong> <em>italic</em> <code>code</code></p>")
+      assert inspect(html, syntax_colors: []) == "#HTML2Text.HTML<bold italic code>"
+    end
+  end
 end

@@ -4,14 +4,27 @@ end
 
 defmodule HTML2Text do
   @moduledoc """
-  A native-implemented HTML to plain text converter using Rust NIF.
+  A high-performance HTML to text converter using Rust NIF.
 
-  This module provides functionality to convert HTML documents to plain text format
-  with configurable line width wrapping. It uses the Rust `html2text` crate under
-  the hood for high-performance HTML parsing and text extraction.
+  Three levels of conversion are available:
 
-  The converter handles HTML entities, removes tags, and formats the output as
-  readable plain text while preserving the logical structure of the content.
+  - `convert/2` — plain text with markdown-like decorations (`**bold**`, `*italic*`, link footnotes)
+  - `convert_rich/2` — structured `{text, annotations}` tuples for building custom renderers (Slack, Discord, etc.)
+  - `HTML2Text.HTML` — a container struct whose `Inspect` implementation renders HTML as
+    formatted text with ANSI styles directly in IEx
+
+  ## HTML container
+
+  Wrap HTML in `HTML2Text.HTML.new/1` to get readable output when inspecting data structures:
+
+      email = %{subject: "Welcome", body: HTML2Text.HTML.new("<p>Hello <strong>world</strong></p>")}
+
+  In IEx this prints as:
+
+      %{subject: "Welcome", body: #HTML2Text.HTML<Hello **world**>}
+
+  Bold, italic, links (clickable in supported terminals), code, strikeout, and CSS
+  colours are rendered with ANSI escape sequences. `to_string/1` returns the original HTML.
 
   See: https://github.com/jugglerchris/rust-html2text
   """

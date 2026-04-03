@@ -9,7 +9,8 @@ HTML2Text provides a simple and efficient way to extract readable text from HTML
 
 Two conversion modes are available:
 - **Plain text** (`convert/2`) — markdown-like output with `**bold**`, `*italic*`, link footnotes, table borders
-- **Rich text** (`convert_rich/2`) — structured `{text, annotations}` tuples for building custom renderers (ANSI terminal, Slack, Inspect protocol, etc.)
+- **Rich text** (`convert_rich/2`) — structured `{text, annotations}` tuples for building custom renderers
+- **HTML container** (`HTML2Text.HTML`) — a struct with `Inspect` protocol that renders HTML as formatted text with ANSI styles directly in IEx
 
 ## Installation
 
@@ -142,3 +143,34 @@ html = ~s(<p style="color: red">alert</p>)
 Available annotations: `:default`, `:emphasis`, `:strong`, `:strikeout`, `:code`,
 `{:link, url}`, `{:image, src}`, `{:preformat, bool}`, `{:colour, {r, g, b}}`,
 `{:bg_colour, {r, g, b}}`.
+
+### HTML container
+
+`HTML2Text.HTML` is a struct that wraps raw HTML and renders it as formatted text when inspected in IEx. Instead of seeing raw tags, you see readable output with bold, italic, colours, and clickable links.
+
+```elixir
+# Wrap HTML content
+html = HTML2Text.HTML.new("<p>Hello <strong>world</strong></p>")
+#=> #HTML2Text.HTML<Hello world>
+#                         ^^^^^ bold in terminal
+
+# Works inside any data structure — maps, structs, lists
+%{subject: "Alert", body: HTML2Text.HTML.new(email_html)}
+# In IEx:
+# %{subject: "Alert", body: #HTML2Text.HTML<
+#     Dear customer,
+#
+#     Your order has been shipped.
+#     Track it here: click here    <-- clickable link in supported terminals
+#   >}
+
+# Short content stays inline
+["before", HTML2Text.HTML.new("<em>note</em>"), "after"]
+#=> ["before", #HTML2Text.HTML<note>, "after"]
+
+# to_string/1 returns the original HTML
+to_string(html)
+#=> "<p>Hello <strong>world</strong></p>"
+```
+
+Supported styles: bold (`<strong>`), italic (`<em>`), cyan (`<code>`), strikeout (`<s>`), blue underline with clickable links (`<a href>`), CSS colours via `<style>` tags and inline styles.
