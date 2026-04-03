@@ -1,21 +1,23 @@
 use html2text::{
-    config::{Config, ImageRenderMode},
-    render::{PlainDecorator, RichAnnotation, RichDecorator, TaggedLine},
+    config::{self, Config, ImageRenderMode},
+    render::{PlainDecorator, RichAnnotation, RichDecorator, TaggedLine, TextDecorator},
 };
 use rustler::{error::Error, Atom, Encoder, Env, NifResult, Term};
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::sync::{LazyLock, Mutex};
 
-static INTERNED: LazyLock<Mutex<HashMap<String, &'static str>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+type ConfigResult<T> = Result<Config<T>, html2text::Error>;
+
+static INTERNED: LazyLock<Mutex<HashSet<&'static str>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
 
 fn intern(s: String) -> &'static str {
-    let mut map = INTERNED.lock().unwrap();
-    if let Some(&existing) = map.get(&s) {
+    let mut set = INTERNED.lock().unwrap();
+    if let Some(&existing) = set.get(s.as_str()) {
         existing
     } else {
-        let leaked: &'static str = Box::leak(s.clone().into_boxed_str());
-        map.insert(s, leaked);
+        let leaked = Box::leak(s.into_boxed_str());
+        set.insert(leaked);
         leaked
     }
 }
@@ -93,13 +95,11 @@ impl Default for Options {
     }
 }
 
-use html2text::render::TextDecorator;
-
 /// Applies shared options to any Config<D>.
 fn apply_shared_options<D: TextDecorator>(
     mut cfg: Config<D>,
     options: &Options,
-) -> Result<Config<D>, html2text::Error> {
+) -> ConfigResult<D> {
     cfg = cfg.max_wrap_width(options.width);
     if !options.table_borders {
         cfg = cfg.no_table_borders();
@@ -123,14 +123,14 @@ fn apply_shared_options<D: TextDecorator>(
     if options.use_doc_css {
         cfg = cfg.use_doc_css();
     }
-    if let Some(ref css) = options.css {
+    if let Some(css) = &options.css {
         cfg = cfg.add_css(css)?;
     }
     Ok(cfg)
 }
 
-fn build_plain_config(options: &Options) -> Result<Config<PlainDecorator>, html2text::Error> {
-    let mut cfg = apply_shared_options(html2text::config::plain_no_decorate(), options)?;
+fn build_plain_config(options: &Options) -> ConfigResult<PlainDecorator> {
+    let mut cfg = apply_shared_options(config::plain_no_decorate(), options)?;
     if options.decorate {
         cfg = cfg.do_decorate();
     }
@@ -151,7 +151,7 @@ macro_rules! set_if_ok {
 impl<'a> TryFrom<Term<'a>> for Options {
     type Error = Error;
     fn try_from(term: Term) -> NifResult<Self> {
-        let kv_vec: Vec<(Atom, Term)> = term.decode()?;
+        let kv_vec = term.decode::<Vec<(Atom, Term)>>()?;
         let mut config = Options::default();
 
         for (key, val) in kv_vec {
@@ -187,10 +187,9 @@ impl<'a> TryFrom<Term<'a>> for Options {
                         } else if atom == atoms::filename() {
                             config.empty_img_mode = Some(ImageRenderMode::Filename);
                         }
-                    } else if let Ok(tuple) = val.decode::<(Atom, String)>() {
-                        if tuple.0 == atoms::replace() {
-                            config.empty_img_mode =
-                                Some(ImageRenderMode::Replace(intern(tuple.1)));
+                    } else if let Ok((atom, s)) = val.decode::<(Atom, String)>() {
+                        if atom == atoms::replace() {
+                            config.empty_img_mode = Some(ImageRenderMode::Replace(intern(s)));
                         }
                     }
                 }
@@ -230,8 +229,8 @@ fn encode_annotation<'a>(ann: &RichAnnotation, env: Env<'a>) -> Term<'a> {
         RichAnnotation::Strong => atoms::strong().encode(env),
         RichAnnotation::Strikeout => atoms::strikeout().encode(env),
         RichAnnotation::Code => atoms::code().encode(env),
-        RichAnnotation::Link(url) => (atoms::link(), url.as_str()).encode(env),
-        RichAnnotation::Image(src) => (atoms::image(), src.as_str()).encode(env),
+        RichAnnotation::Link(url) => (atoms::link(), url).encode(env),
+        RichAnnotation::Image(src) => (atoms::image(), src).encode(env),
         RichAnnotation::Preformat(cont) => (atoms::preformat(), *cont).encode(env),
         RichAnnotation::Colour(c) => (atoms::colour(), (c.r, c.g, c.b)).encode(env),
         RichAnnotation::BgColour(c) => (atoms::bg_colour(), (c.r, c.g, c.b)).encode(env),
@@ -240,19 +239,22 @@ fn encode_annotation<'a>(ann: &RichAnnotation, env: Env<'a>) -> Term<'a> {
 }
 
 fn encode_line<'a>(line: &TaggedLine<Vec<RichAnnotation>>, env: Env<'a>) -> Term<'a> {
-    let segments: Vec<Term> = line
+    let segments = line
         .tagged_strings()
         .map(|ts| {
-            let annotations: Vec<Term> =
-                ts.tag.iter().map(|ann| encode_annotation(ann, env)).collect();
-            (ts.s.as_str(), annotations).encode(env)
+            let annotations = ts
+                .tag
+                .iter()
+                .map(|ann| encode_annotation(ann, env))
+                .collect::<Vec<_>>();
+            (&ts.s, annotations).encode(env)
         })
-        .collect();
+        .collect::<Vec<_>>();
     segments.encode(env)
 }
 
-fn build_rich_config(options: &Options) -> Result<Config<RichDecorator>, html2text::Error> {
-    apply_shared_options(html2text::config::rich(), options)
+fn build_rich_config(options: &Options) -> ConfigResult<RichDecorator> {
+    apply_shared_options(config::rich(), options)
 }
 
 #[rustler::nif(schedule = "DirtyCpu")]
@@ -267,8 +269,10 @@ fn do_convert_rich<'a>(env: Env<'a>, html: String, config_term: Term) -> NifResu
 
     match cfg.lines_from_read(html.as_bytes(), width) {
         Ok(lines) => {
-            let encoded_lines: Vec<Term> =
-                lines.iter().map(|line| encode_line(line, env)).collect();
+            let encoded_lines = lines
+                .iter()
+                .map(|line| encode_line(line, env))
+                .collect::<Vec<_>>();
             Ok((atoms::ok(), encoded_lines).encode(env))
         }
         Err(e) => Ok((atoms::error(), e.to_string()).encode(env)),
