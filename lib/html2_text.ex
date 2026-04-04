@@ -1,4 +1,5 @@
 defmodule HTML2Text.Error do
+  @moduledoc "Exception raised by bang functions (`convert!/2`, `convert_rich!/2`)."
   defexception [:message]
 end
 
@@ -6,12 +7,13 @@ defmodule HTML2Text do
   @moduledoc """
   A high-performance HTML to text converter using Rust NIF.
 
-  Three levels of conversion are available:
+  Two conversion modes are available:
 
   - `convert/2` — plain text with markdown-like decorations (`**bold**`, `*italic*`, link footnotes)
   - `convert_rich/2` — structured `{text, annotations}` tuples for building custom renderers (Slack, Discord, etc.)
-  - `HTML2Text.HTML` — a container struct whose `Inspect` implementation renders HTML as
-    formatted text with ANSI styles directly in IEx
+
+  Additionally, `HTML2Text.HTML` is a container struct whose `Inspect` protocol renders HTML as
+  formatted text with ANSI styles directly in IEx.
 
   ## HTML container
 

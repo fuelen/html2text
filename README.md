@@ -10,7 +10,8 @@ HTML2Text provides a simple and efficient way to extract readable text from HTML
 Two conversion modes are available:
 - **Plain text** (`convert/2`) — markdown-like output with `**bold**`, `*italic*`, link footnotes, table borders
 - **Rich text** (`convert_rich/2`) — structured `{text, annotations}` tuples for building custom renderers
-- **HTML container** (`HTML2Text.HTML`) — a struct with `Inspect` protocol that renders HTML as formatted text with ANSI styles directly in IEx
+
+Additionally, `HTML2Text.HTML` is a container struct whose `Inspect` protocol renders HTML as formatted text with ANSI styles directly in IEx.
 
 ## Installation
 
