@@ -1,6 +1,6 @@
 defmodule HTML2Text.MixProject do
   use Mix.Project
-  @version "0.2.0"
+  @version "0.3.0"
   @source_url "https://github.com/fuelen/html2text"
 
   def project do
@@ -18,10 +18,11 @@ defmodule HTML2Text.MixProject do
 
   defp package do
     [
-      description: "A NIF for converting HTML to plain text",
+      description: "A NIF for converting HTML to plain text or annotated rich text",
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files: ~w(lib native .formatter.exs README* LICENSE* mix.exs checksum-*.exs)
+      files: ~w(lib native .formatter.exs README* LICENSE* mix.exs checksum-*.exs),
+      exclude_patterns: [~r/native\/.*\/target/]
     ]
   end
 
