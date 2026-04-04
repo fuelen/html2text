@@ -2,7 +2,7 @@ defmodule HTML2TextTest do
   use ExUnit.Case
   doctest HTML2Text
 
-  describe "convert2" do
+  describe "convert/2" do
     @html """
     <html>
       <head><title>Test</title></head>
@@ -494,6 +494,19 @@ defmodule HTML2TextTest do
 
       assert {:ok, [[{"yellow", [{:bg_colour, {255, 255, 0}}]}]]} =
                HTML2Text.convert_rich(html, use_doc_css: true)
+    end
+
+    test "css option applies custom rules" do
+      html =
+        ~s(<html><head></head><body><p class="r">red</p></body></html>)
+
+      assert {:ok, [[{"red", [{:colour, {255, 0, 0}}]}]]} =
+               HTML2Text.convert_rich(html, css: ".r { color: #ff0000; }", use_doc_css: true)
+    end
+
+    test "width: :infinity" do
+      {:ok, lines} = HTML2Text.convert_rich("<p>Hello world</p>", width: :infinity)
+      assert [[{"Hello world", []}]] = lines
     end
   end
 
